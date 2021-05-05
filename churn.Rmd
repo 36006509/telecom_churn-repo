@@ -25,13 +25,13 @@ library(yardstick)
 library(workflowsets)
 library(dplyr)
 library(DataExplorer)
+library(kknn)
+library(themis)
 ```
 
 ## import our data
 
-You can also embed plots, for example:
-
-```{r data, echo=FALSE}
+```{r data, message=TRUE, warning=FALSE}
 churn<- read.csv("https://raw.githubusercontent.com/36006509/telecom_churn-repo/main/churn-bigml-80.csv",stringsAsFactors = TRUE)
 ```
 
@@ -41,4 +41,81 @@ Now, let's see under the wood all the features
 
 ```{r EDA}
 plot_intro(churn)
+str(churn)
+```
+
+only 20% of our columns are discrete and their is no missing observation which is a good thing.
+
+```{r}
+
+plot_boxplot(churn, by = "Churn")
+
+churn %>%
+  count(Churn)%>%
+  mutate(p=n/sum(n))
+```
+
+we can see that almost 86 percent of the clients are not churner. So, it seems like we are facing an imbalanced data. to fix that we need to we need to do some data augmentation.
+
+```{r hist}
+plot_histogram(churn)
+
+```
+
+```{r density}
+churn%>%
+  group_by(Churn)%>%
+  plot_density()
+
+
+```
+
+## Bivariate Analysis
+
+Now let's look for some correlation between continuous variables
+
+```{r corr}
+plot_correlation(churn,type = "all")
+```
+
+As we see some features are highly correlated like total.intl.charge and total.intl.minutes. Thus, we will keep only one of them for the modelisation. We'll do the same thing for all correlated features.
+
+# Processing
+
+## Split the date
+
+```{r split, message=FALSE, warning=FALSE}
+set.seed(123)
+churn_split<- initial_split(churn,
+                             prop = 0.75,
+                            strata = Churn)
+churn_train<- churn_split %>% training()
+churn_test<- churn_split%>% testing()
+
+#folds caracteristics for the cross validation 
+set.seed(2)
+churn_folds <- vfold_cv(data =  churn_train,
+                       #number of partition
+                       v = 5,
+                       #outcome variable
+                       strata = Churn)
+
+
+```
+
+## Recipe
+
+```{r recipe, message=FALSE, warning=FALSE}
+churn_rec<- recipe(Churn ~., data = churn_train) %>% 
+  #set the event/reference level to 'good'
+  step_relevel(churn, ref_level = 'True') %>% 
+  
+  
+  #normalize all numeric variables
+  step_normalize(all_numeric()) %>% 
+  
+  #turn all the factors into dummies and delete the reference level
+  step_dummy(all_nominal(), -all_outcomes()) %>% 
+  step_smote(Churn)
+
 ```
