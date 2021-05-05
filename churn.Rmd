@@ -29,7 +29,7 @@ library(DataExplorer)
 You can also embed plots, for example:
 
 ```{r data, echo=FALSE}
-churn<- read.csv("~/Documents/tidimodels project mata/telecom_churn/archive/churn-bigml-80.csv",stringsAsFactors = TRUE)
+churn<- read.csv("https://raw.githubusercontent.com/36006509/telecom_churn-repo/main/churn-bigml-80.csv",stringsAsFactors = TRUE)
 ```
 
 ## Exploratory Data Analysis
