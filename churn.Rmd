@@ -21,7 +21,7 @@ library(parsnip)
 library(yardstick)
 library(workflowsets)
 library(dplyr)
-library(read)
+library(DataExplorer)
 ```
 
 ## import our data
@@ -29,8 +29,13 @@ library(read)
 You can also embed plots, for example:
 
 ```{r data, echo=FALSE}
-churn<- read.csv("https://raw.githubusercontent.com/36006509/telecom_churn-repo/churn-bigml-80.csv",row.names = 'X',
-        stringsAsFactors = TRUE)
+churn<- read.csv("~/Documents/tidimodels project mata/telecom_churn/archive/churn-bigml-80.csv",stringsAsFactors = TRUE)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## Exploratory Data Analysis
+
+Now, let's see under the wood all the features
+
+```{r EDA}
+plot_intro(churn)
+```
