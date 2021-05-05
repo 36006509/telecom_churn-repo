@@ -27,12 +27,21 @@ library(dplyr)
 library(DataExplorer)
 library(kknn)
 library(themis)
+library(glmnet)
+library(rpart)
+library(readr)
+library(kableExtra)
 ```
 
 ## import our data
 
 ```{r data, message=TRUE, warning=FALSE}
 churn<- read.csv("https://raw.githubusercontent.com/36006509/telecom_churn-repo/main/churn-bigml-80.csv",stringsAsFactors = TRUE)
+#churn[is.double(churn)]<- as.integer(churn[is.double(churn)])
+#churn[is.integer(churn)]<- as.numeric(churn[is.integer(churn)])
+churn$Churn<-if_else(churn$Churn=="False","NON","OUI")
+churn$Churn<- as.factor(churn$Churn)
+str(churn)
 ```
 
 ## Exploratory Data Analysis
@@ -106,16 +115,126 @@ churn_folds <- vfold_cv(data =  churn_train,
 ## Recipe
 
 ```{r recipe, message=FALSE, warning=FALSE}
+
+
 churn_rec<- recipe(Churn ~., data = churn_train) %>% 
   #set the event/reference level to 'good'
-  step_relevel(churn, ref_level = 'True') %>% 
-  
+  step_relevel(Churn, ref_level = 'OUI') %>% 
   
   #normalize all numeric variables
   step_normalize(all_numeric()) %>% 
   
+  step_corr(all_numeric_predictors(),threshold = 0.6)%>%
+  
   #turn all the factors into dummies and delete the reference level
   step_dummy(all_nominal(), -all_outcomes()) %>% 
   step_smote(Churn)
+  
 
+```
+
+## Model specification using parsnip and tune
+
+let's now dive into the modelisation. Each model that we 'll be using needs some hyperparameter tuning.
+
+-   Logistic Regression
+
+-   K nearest neighbor
+
+-   Random forest
+
+-   Decision tree
+
+```{r model}
+
+#logistic regression
+logit_tuned <- logistic_reg(penalty = tune(), 
+                            mixture = tune()) %>%
+  set_engine('glmnet') %>%
+  set_mode('classification')
+
+#Decision Tree
+
+dt_tuned <- decision_tree(cost_complexity = tune(),
+                               tree_depth = tune(),
+                               min_n = tune()) %>%
+  set_engine('rpart') %>%
+  set_mode('classification')
+
+```
+
+## Modeling
+
+### Workflowset
+
+```{r models}
+#make a list out of the models
+models <- list(logit = logit_tuned,
+               dt = dt_tuned)
+#incorporate them in a set of workflow
+churn_wflow_set <- workflow_set(preproc = list(rec=churn_rec), 
+                               models = models, 
+                               cross = TRUE)  
+#metrics we want for each model 
+#we want : accuracy, sensitivity, specificity, area under the roc curve 
+churn_metrics <- metric_set(accuracy, sens, spec, roc_auc)
+
+```
+
+### Tune the model
+
+```{r tuned model}
+wflow_set_grid_results <- churn_wflow_set %>% 
+  workflow_map(
+  #tune_grid() parameters
+    resamples = churn_folds,
+    grid = 10,
+    metrics = churn_metrics,
+  #workflow_map() own parameters
+    seed = 3,
+    verbose = TRUE),
+```
+
+```{r best}
+wflow_set_grid_results %>% 
+  rank_results(rank_metric = "accuracy", select_best = TRUE) %>% 
+  filter(.metric == "accuracy" | .metric == "sens" | .metric == "spec" )%>% 
+  kbl() %>% 
+  kable_styling() %>% 
+  scroll_box(width = "100%", height = "200px")
+
+```
+
+```{r plot}
+#plot the performance of each model by rank
+wflow_set_grid_results %>% 
+  autoplot(rank_metric= "roc_auc", 
+           metric = "roc_auc")
+
+```
+
+```{r best metrics}
+#take the best result
+best_results <- wflow_set_grid_results %>% 
+  pull_workflow_set_result("rec_dt") %>% 
+  select_best(metric = "roc_auc")
+
+best_results
+
+```
+
+```{r finalize}
+#fit the best model
+final_fit <- wflow_set_grid_results %>% 
+  pull_workflow("rec_dt") %>% 
+  finalize_workflow(best_results) %>% 
+  last_fit(churn_split) 
+```
+
+```{r prediction}
+pred<-final_fit %>% collect_predictions()
+conf_mat(pred,
+         truth = Churn,
+         estimate = .pred_class)%>%
+  autoplot(type="heatmap")
 ```
