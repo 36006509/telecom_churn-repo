@@ -192,7 +192,7 @@ wflow_set_grid_results <- churn_wflow_set %>%
     metrics = churn_metrics,
   #workflow_map() own parameters
     seed = 3,
-    verbose = TRUE),
+    verbose = TRUE)
 ```
 
 ```{r best}
