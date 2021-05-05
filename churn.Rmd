@@ -1,0 +1,36 @@
+---
+title: "churn"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# TELECOM CHURN PREDICTION
+
+We will try to some predictions. The Orange telecom's churn dataset have been uploaded from Kaggle and you can easily access to it by clicking to this [link](https://www.kaggle.com/mnassrib/telecom-churn-datasets "link to the dataset")
+
+## Loading all packages
+
+```{r load, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(tidyverse)
+library(tidymodels)
+library(parsnip)
+library(yardstick)
+library(workflowsets)
+library(dplyr)
+library(read)
+```
+
+## import our data
+
+You can also embed plots, for example:
+
+```{r data, echo=FALSE}
+churn<- read.csv("https://raw.githubusercontent.com/36006509/telecom_churn-repo/churn-bigml-80.csv",row.names = 'X',
+        stringsAsFactors = TRUE)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
