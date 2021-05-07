@@ -31,6 +31,9 @@ library(glmnet)
 library(rpart)
 library(readr)
 library(kableExtra)
+library(klaR)
+library(discrim)
+library(randomForest)
 ```
 
 ## import our data
@@ -68,6 +71,7 @@ we can see that almost 86 percent of the clients are not churner. So, it seems l
 
 ```{r hist}
 plot_histogram(churn)
+plot_bar(churn_fact)
 
 ```
 
@@ -84,7 +88,16 @@ churn%>%
 Now let's look for some correlation between continuous variables
 
 ```{r corr}
-plot_correlation(churn,type = "all")
+plot_correlation(churn,type = "d")
+plot_correlation(churn,type="c")
+
+churn_num<-bind_cols(
+  select_if(churn, is.numeric),
+  select_at(churn, "Churn")
+)
+churn_fact<- select_if(churn,is.factor)
+
+GGally::scatmat(churn_num,1:ncol(churn_num),color = "Churn")
 ```
 
 As we see some features are highly correlated like total.intl.charge and total.intl.minutes. Thus, we will keep only one of them for the modelisation. We'll do the same thing for all correlated features.
@@ -145,6 +158,8 @@ let's now dive into the modelisation. Each model that we 'll be using needs some
 
 -   Decision tree
 
+-   
+
 ```{r model}
 
 #logistic regression
@@ -161,6 +176,17 @@ dt_tuned <- decision_tree(cost_complexity = tune(),
   set_engine('rpart') %>%
   set_mode('classification')
 
+bayes_tuned<- naive_Bayes(smoothness=tune(),
+                          Laplace=tune())%>%
+  set_engine('klaR')%>%
+  set_mode('classification')
+
+rf_tuned <- rand_forest(mtry = tune(),
+                        trees = tune(),
+                        min_n = tune()) %>% 
+  set_engine('randomForest') %>%
+  set_mode('classification')
+
 ```
 
 ## Modeling
@@ -170,7 +196,9 @@ dt_tuned <- decision_tree(cost_complexity = tune(),
 ```{r models}
 #make a list out of the models
 models <- list(logit = logit_tuned,
-               dt = dt_tuned)
+               dt = dt_tuned,
+               b=bayes_tuned,
+               rd=rf_tuned)
 #incorporate them in a set of workflow
 churn_wflow_set <- workflow_set(preproc = list(rec=churn_rec), 
                                models = models, 
@@ -216,7 +244,7 @@ wflow_set_grid_results %>%
 ```{r best metrics}
 #take the best result
 best_results <- wflow_set_grid_results %>% 
-  pull_workflow_set_result("rec_dt") %>% 
+  pull_workflow_set_result("rec_rd") %>% 
   select_best(metric = "roc_auc")
 
 best_results
@@ -226,7 +254,7 @@ best_results
 ```{r finalize}
 #fit the best model
 final_fit <- wflow_set_grid_results %>% 
-  pull_workflow("rec_dt") %>% 
+  pull_workflow("rec_rd") %>% 
   finalize_workflow(best_results) %>% 
   last_fit(churn_split) 
 ```
