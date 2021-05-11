@@ -76,7 +76,11 @@ churn %>%
 we can see that almost 86 percent of the clients are not churner. So, it seems like we are facing an imbalanced data. to fix that we need to do some data augmentation.
 
 ```{r hist}
-
+churn_num<-bind_cols(
+  select_if(churn, is.numeric),
+  select_at(churn, "Churn")
+)
+churn_fact<- select_if(churn,is.factor)
 plot_bar(churn_fact)
 
 ```
@@ -92,11 +96,7 @@ Now let's check for some features correlations.
 plot_correlation(churn,type = "d")#correlation between discrete variables
 plot_correlation(churn,type="c")#correlation between continuous variables
 
-churn_num<-bind_cols(
-  select_if(churn, is.numeric),
-  select_at(churn, "Churn")
-)
-churn_fact<- select_if(churn,is.factor)
+
 
 #GGally::scatmat(churn_num,1:ncol(churn_num),color = "Churn")
 ```
