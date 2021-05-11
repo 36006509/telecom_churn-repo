@@ -12,7 +12,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # TELECOM CHURN PREDICTION
 
-We will try to some predictions. The Orange telecom's churn dataset have been uploaded from Kaggle and you can easily access to it by clicking to this [link](https://www.kaggle.com/mnassrib/telecom-churn-datasets "link to the dataset")
+Okay, today we will try to build some predictive model. To do so, We will be using the Tidymodel framework which is very handy.
+
+The Orange telecom's churn dataset have been uploaded from Kaggle and you can easily access to it by clicking on this [link](https://www.kaggle.com/mnassrib/telecom-churn-datasets "link to the dataset"). But first of all, let's load all the package that we will need for this project.
 
 ## Loading all packages
 
@@ -38,6 +40,8 @@ library(randomForest)
 
 ## import our data
 
+As we see below, the Dataset contains 2666 observations and about 20 features like their personal information and their daily usage and purchase. the outcome is the variable "Churn" specifying whether a customer canceled a subscription.
+
 ```{r data, message=TRUE, warning=FALSE}
 churn<- read.csv("https://raw.githubusercontent.com/36006509/telecom_churn-repo/main/churn-bigml-80.csv",stringsAsFactors = TRUE)
 #churn[is.double(churn)]<- as.integer(churn[is.double(churn)])
@@ -49,14 +53,16 @@ str(churn)
 
 ## Exploratory Data Analysis
 
-Now, let's see under the wood all the features
+### Univaritate analysis
+
+Now, let's see take a look at our features
 
 ```{r EDA}
 plot_intro(churn)
-str(churn)
+
 ```
 
-only 20% of our columns are discrete and their is no missing observation which is a good thing.
+only 20% of our features are nominal and their is no missing observation which is a good thing.
 
 ```{r}
 
@@ -67,29 +73,24 @@ churn %>%
   mutate(p=n/sum(n))
 ```
 
-we can see that almost 86 percent of the clients are not churner. So, it seems like we are facing an imbalanced data. to fix that we need to we need to do some data augmentation.
+we can see that almost 86 percent of the clients are not churner. So, it seems like we are facing an imbalanced data. to fix that we need to do some data augmentation.
 
 ```{r hist}
-plot_histogram(churn)
+
 plot_bar(churn_fact)
 
 ```
 
-```{r density}
-churn%>%
-  group_by(Churn)%>%
-  plot_density()
-
-
+```{}
 ```
 
-## Bivariate Analysis
+### Bivariate Analysis
 
-Now let's look for some correlation between continuous variables
+Now let's check for some features correlations.
 
 ```{r corr}
-plot_correlation(churn,type = "d")
-plot_correlation(churn,type="c")
+plot_correlation(churn,type = "d")#correlation between discrete variables
+plot_correlation(churn,type="c")#correlation between continuous variables
 
 churn_num<-bind_cols(
   select_if(churn, is.numeric),
@@ -97,14 +98,14 @@ churn_num<-bind_cols(
 )
 churn_fact<- select_if(churn,is.factor)
 
-GGally::scatmat(churn_num,1:ncol(churn_num),color = "Churn")
+#GGally::scatmat(churn_num,1:ncol(churn_num),color = "Churn")
 ```
 
 As we see some features are highly correlated like total.intl.charge and total.intl.minutes. Thus, we will keep only one of them for the modelisation. We'll do the same thing for all correlated features.
 
-# Processing
+## Processing
 
-## Split the date
+### training and testing 
 
 ```{r split, message=FALSE, warning=FALSE}
 set.seed(123)
@@ -125,7 +126,19 @@ churn_folds <- vfold_cv(data =  churn_train,
 
 ```
 
-## Recipe
+### Recipe and features Engineering
+
+-   Create recipe by specifying outcome and predictors, we'll be using the train dataset
+
+-   step_relevel: to change the reference level to "OUI"
+
+-   step_normalize: to normalize all our numeric variables
+
+-   step_corr: to drop all numeric predictors that are high correlated
+
+-   step_dummy: create dummy variables for all nominal variables
+
+-   step_smote: to deal with imbalanced data
 
 ```{r recipe, message=FALSE, warning=FALSE}
 
@@ -148,7 +161,7 @@ churn_rec<- recipe(Churn ~., data = churn_train) %>%
 
 ## Model specification using parsnip and tune
 
-let's now dive into the modelisation. Each model that we 'll be using needs some hyperparameter tuning.
+let's now dive into the modelisation. Each model that we 'll be using needs some hyper-parameter tuning. to do so, we will first specify all our models and tune their respective hyper_parameter.
 
 -   Logistic Regression
 
@@ -158,7 +171,7 @@ let's now dive into the modelisation. Each model that we 'll be using needs some
 
 -   Decision tree
 
--   
+-   Bayesian model
 
 ```{r model}
 
@@ -191,7 +204,15 @@ rf_tuned <- rand_forest(mtry = tune(),
 
 ## Modeling
 
-### Workflowset
+### Creating workflowset
+
+let's now create our workflow by:
+
+-   making a list out of the models
+
+-   put these models inside a set of workflow
+
+-   specify the metrics that we will be using for the model evaluation
 
 ```{r models}
 #make a list out of the models
@@ -209,7 +230,9 @@ churn_metrics <- metric_set(accuracy, sens, spec, roc_auc)
 
 ```
 
-### Tune the model
+### Model tuning
+
+For each model tuning we will use a cross-validation and the tune_grid() function will choose randomly 10 combinations of the hyper-parameters. we will see later which of those combination is the best.
 
 ```{r tuned model}
 wflow_set_grid_results <- churn_wflow_set %>% 
@@ -241,6 +264,8 @@ wflow_set_grid_results %>%
 
 ```
 
+The plot bellow tells us that the random forest performs better than the other models. but it takes a few minutes to run as it may selects about 400 trees. so now, let's pull the best result within the workflow and finalize our model
+
 ```{r best metrics}
 #take the best result
 best_results <- wflow_set_grid_results %>% 
@@ -250,6 +275,8 @@ best_results <- wflow_set_grid_results %>%
 best_results
 
 ```
+
+Let's fit the best model, collect the predictions and plot the confusion matrix:
 
 ```{r finalize}
 #fit the best model
